@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Analisador NF-e</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0d0f14; --bg2:#13161e; --bg3:#1a1e2a; --border:#252a38;
+  --accent:#00e5a0; --accent2:#0077ff; --warn:#ff6b35;
+  --text:#e2e8f0; --muted:#64748b; --red:#ff4d6d; --yellow:#ffd166;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+
+header{background:var(--bg2);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:100;}
+.logo{font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600;color:var(--accent);}
+.logo span{color:var(--muted);}
+.subtitle{color:var(--muted);font-size:13px;}
+#statusBadge{margin-left:auto;background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:3px 14px;font-size:12px;font-family:'IBM Plex Mono',monospace;color:var(--muted);}
+#statusBadge.active{color:var(--accent);border-color:var(--accent);}
+
+.container{display:flex;height:calc(100vh - 53px);}
+.sidebar{width:310px;min-width:310px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.main{flex:1;overflow:hidden;display:flex;flex-direction:column;}
+
+.sb{padding:16px;border-bottom:1px solid var(--border);}
+.sb h3{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+
+.folder-input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:9px 11px;color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;outline:none;}
+.folder-input:focus{border-color:var(--accent);}
+.btn-scan{width:100%;margin-top:8px;padding:9px;background:var(--accent);color:#000;border:none;border-radius:6px;font-weight:700;font-size:13px;cursor:pointer;}
+.btn-scan:hover{opacity:.85;} .btn-scan:disabled{opacity:.4;cursor:not-allowed;}
+
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+.sc{background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:10px;}
+.sc .lbl{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:3px;}
+.sc .val{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;color:var(--accent);}
+.sc .val.r{color:var(--red);} .sc .val.y{color:var(--yellow);} .sc .val.b{color:var(--accent2);}
+
+.fi{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:12px;outline:none;margin-bottom:8px;}
+.fi:focus{border-color:var(--accent2);}
+.fi-sel{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;outline:none;margin-bottom:8px;}
+
+.sec-label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px;}
+
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;}
+.chip{padding:3px 9px;border-radius:20px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;cursor:pointer;user-select:none;display:inline-flex;align-items:center;gap:3px;}
+.chip:hover{border-color:var(--accent2);color:var(--text);}
+.chip.on{background:rgba(0,229,160,.12);border-color:var(--accent);color:var(--accent);}
+.chip .n{font-size:9px;background:var(--bg);border-radius:8px;padding:1px 4px;color:var(--muted);font-weight:400;}
+.chip.on .n{background:rgba(0,229,160,.2);color:var(--accent);}
+
+.pchips{display:flex;flex-direction:column;gap:3px;max-height:150px;overflow-y:auto;margin-bottom:10px;}
+.pchip{display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);font-size:11px;cursor:pointer;user-select:none;}
+.pchip:hover{border-color:var(--accent2);color:var(--text);}
+.pchip.on{background:rgba(0,119,255,.1);border-color:var(--accent2);color:var(--accent2);}
+.pchip .pname{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pchip .pcode{font-family:'IBM Plex Mono',monospace;font-size:10px;opacity:.6;}
+.pchip .n{font-size:9px;background:var(--bg);border-radius:8px;padding:1px 4px;color:var(--muted);flex-shrink:0;}
+.pchip.on .n{background:rgba(0,119,255,.2);color:var(--accent2);}
+
+.btn-filter{flex:1;padding:9px;background:var(--accent2);color:#fff;border:none;border-radius:6px;font-weight:700;font-size:13px;cursor:pointer;}
+.btn-filter:hover{opacity:.85;}
+.btn-clear{padding:9px 12px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:13px;cursor:pointer;}
+.btn-clear:hover{border-color:var(--red);color:var(--red);}
+
+.nota-list{flex:1;overflow-y:auto;}
+.ni{padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;}
+.ni:hover{background:var(--bg3);}
+.ni.sel{background:rgba(0,229,160,.06);border-left:3px solid var(--accent);}
+.ni.err{border-left:3px solid var(--red);}
+.ni .nh{display:flex;justify-content:space-between;margin-bottom:3px;}
+.ni .nn{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:var(--accent);}
+.ni .nv{font-family:'IBM Plex Mono',monospace;font-size:12px;}
+.ni .nd{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ni .ndt{font-size:11px;color:var(--muted);margin-top:2px;}
+.ni .ne{font-size:11px;color:var(--red);margin-top:3px;}
+.empty{padding:32px;text-align:center;color:var(--muted);font-size:13px;}
+
+.welcome{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;gap:14px;padding:20px;}
+.welcome .ico{font-size:56px;opacity:.25;}
+.welcome h2{font-size:20px;font-weight:600;color:var(--muted);}
+.welcome p{font-size:13px;color:var(--muted);max-width:340px;line-height:1.6;}
+
+.chave-box{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:9px 12px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);word-break:break-all;margin-bottom:18px;}
+.chave-box span{color:var(--accent2);}
+.dg{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;}
+.dc{background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:16px;}
+.dc h4{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:5px;}
+.dc h4 .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;}
+.dc h4 .dot.b{background:var(--accent2);} .dc h4 .dot.y{background:var(--yellow);}
+.dr{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;}
+.dr:last-child{border-bottom:none;}
+.dr .k{color:var(--muted);}
+.dr .v{font-family:'IBM Plex Mono',monospace;font-size:11px;text-align:right;max-width:180px;overflow:hidden;text-overflow:ellipsis;}
+.dr .v.g{color:var(--accent);} .dr .v.y{color:var(--yellow);}
+.tg{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:18px;}
+.tc{background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:12px;text-align:center;}
+.tc .tl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;}
+.tc .tv{font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;}
+.is{background:var(--bg2);border:1px solid var(--border);border-radius:9px;overflow:hidden;margin-bottom:18px;}
+.is h4{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);padding:12px 16px;border-bottom:1px solid var(--border);}
+table{width:100%;border-collapse:collapse;}
+thead th{padding:8px 12px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);background:var(--bg3);text-align:left;font-weight:600;}
+tbody tr{border-bottom:1px solid var(--border);}
+tbody tr:hover{background:var(--bg3);}
+tbody tr:last-child{border-bottom:none;}
+tbody td{padding:8px 12px;font-size:12px;}
+tbody td.m{font-family:'IBM Plex Mono',monospace;font-size:11px;}
+tbody td.r{text-align:right;}
+tbody td.g{color:var(--accent);}
+
+.bs{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;}
+.bsc{background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:18px;}
+.bsc .bl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+.bsc .bv{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:var(--accent);}
+.bsc .bs2{font-size:11px;color:var(--muted);margin-top:3px;}
+.uf-list{display:flex;flex-direction:column;gap:5px;}
+.uf-row{display:flex;align-items:center;gap:8px;}
+.uf-label{font-family:'IBM Plex Mono',monospace;font-size:12px;width:28px;}
+.uf-bar-wrap{flex:1;height:7px;background:var(--bg3);border-radius:4px;overflow:hidden;}
+.uf-bar{height:100%;background:var(--accent);border-radius:4px;}
+.uf-count{font-size:11px;color:var(--muted);width:24px;text-align:right;}
+
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.loading{display:flex;align-items:center;gap:8px;padding:16px;color:var(--muted);}
+.spinner{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+#filterResult{font-size:11px;color:var(--muted);margin-top:8px;text-align:center;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">NF<span>-e</span> Analyzer</div>
+  <div class="subtitle">Leitor de XML de notas fiscais - developed by Ryan Sena</div>
+  <div id="statusBadge">Aguardando pasta</div>
+</header>
+
+<div class="container">
+<aside class="sidebar">
+
+  <div class="sb">
+    <h3>📁 Pasta raiz</h3>
+    <input type="text" class="folder-input" id="folderInput" placeholder="C:\...\Boot-xml\NOVEMBRO-2019" />
+    <button class="btn-scan" id="scanBtn" onclick="scanFolder()">▶ Escanear XMLs</button>
+  </div>
+
+  <div class="sb" id="statsSection" style="display:none">
+    <h3>📊 Resumo</h3>
+    <div class="stats-grid">
+      <div class="sc"><div class="lbl">Total</div><div class="val" id="sTotal">0</div></div>
+      <div class="sc"><div class="lbl">Erros</div><div class="val r" id="sErros">0</div></div>
+      <div class="sc"><div class="lbl">Valor</div><div class="val b" id="sValor">0</div></div>
+      <div class="sc"><div class="lbl">ICMS-ST</div><div class="val y" id="sST">0</div></div>
+    </div>
+  </div>
+
+  <div class="sb" id="filterSection" style="display:none; overflow-y:auto; flex:1; display:none; flex-direction:column;">
+    <h3>🔍 Filtros</h3>
+
+    <input type="text" class="fi" id="fTexto" placeholder="Destinatário, NF, CNPJ..." />
+
+    <select class="fi-sel" id="fOrdem">
+      <option value="data">↕ Ordenar por Data</option>
+      <option value="valor">↕ Ordenar por Valor</option>
+      <option value="nf">↕ Ordenar por NF nº</option>
+    </select>
+
+    <div class="sec-label">Estado destino</div>
+    <div class="chips" id="ufChips"></div>
+
+    <div class="sec-label">Produto</div>
+    <input type="text" class="fi" id="fProdBusca" placeholder="Buscar produto..." oninput="renderProdChips()" />
+    <div class="pchips" id="prodChips"></div>
+
+    <div style="display:flex;gap:6px;">
+      <button class="btn-filter" onclick="applyFilter()">🔎 Filtrar</button>
+      <button class="btn-clear" onclick="clearFilters()">✕ Limpar</button>
+    </div>
+    <div id="filterResult"></div>
+  </div>
+
+  <div class="nota-list" id="notaList">
+    <div class="empty">Nenhuma nota carregada</div>
+  </div>
+
+</aside>
+
+<main class="main">
+  <div id="mainContent" style="height:100%;overflow-y:auto;display:flex;align-items:center;justify-content:center;">
+    <div class="welcome">
+      <div class="ico">🧾</div>
+      <h2>Nenhuma nota selecionada</h2>
+      <p>Informe o caminho da pasta, clique em <strong>Escanear</strong>, selecione os filtros desejados e clique em <strong style="color:var(--accent2)">Filtrar</strong>.</p>
+    </div>
+  </div>
+</main>
+</div>
+
+<script>
+var allNotas = [];
+var filteredNotas = [];
+var allProds = [];
+var selUFs = {};
+var selProds = {};
+
+function fmt(v) {
+  return new Intl.NumberFormat('pt-BR', {style:'currency', currency:'BRL'}).format(v || 0);
+}
+
+// ── Escanear ──────────────────────────────────────────────────────────────────
+async function scanFolder() {
+  var folder = document.getElementById('folderInput').value.trim();
+  if (!folder) { alert('Informe o caminho da pasta!'); return; }
+
+  var btn = document.getElementById('scanBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Escaneando...';
+  document.getElementById('notaList').innerHTML = '<div class="loading"><div class="spinner"></div> Lendo XMLs...</div>';
+
+  var badge = document.getElementById('statusBadge');
+  badge.className = '';
+  badge.textContent = 'Escaneando...';
+
+  try {
+    var res = await fetch('/api/scan', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({folder: folder})
+    });
+    var data = await res.json();
+    if (data.error) { alert(data.error); return; }
+
+    allNotas = data.notas;
+    filteredNotas = allNotas.slice();
+
+    updateStats();
+    buildUFChips();
+    buildProdList();
+    renderList();
+    showDashboard();
+
+    document.getElementById('statsSection').style.display = 'block';
+    // show filter section
+    var fs = document.getElementById('filterSection');
+    fs.style.display = 'block';
+
+    badge.className = 'active';
+    badge.textContent = data.total + ' XMLs carregados';
+  } catch(e) {
+    alert('Erro: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '▶ Escanear XMLs';
+  }
+}
+
+
+function updateStats() {
+  var ok = allNotas.filter(function(n){ return n.status === 'ok'; });
+  var err = allNotas.filter(function(n){ return n.status !== 'ok'; });
+  document.getElementById('sTotal').textContent = allNotas.length;
+  document.getElementById('sErros').textContent = err.length;
+  document.getElementById('sValor').textContent = fmt(ok.reduce(function(s,n){ return s+(n.vNF||0); }, 0)).replace('R$','').trim();
+  document.getElementById('sST').textContent = fmt(ok.reduce(function(s,n){ return s+(n.vST||0); }, 0)).replace('R$','').trim();
+}
+
+
+function buildUFChips() {
+  selUFs = {};
+  var cnt = {};
+  allNotas.forEach(function(n) {
+    if (n.dest_uf) cnt[n.dest_uf] = (cnt[n.dest_uf] || 0) + 1;
+  });
+  var ufs = Object.keys(cnt).sort(function(a, b) {
+    return (cnt[b] - cnt[a]) || a.localeCompare(b);
+  });
+  var html = '';
+  ufs.forEach(function(uf) {
+    html += '<span class="chip" id="uf_' + uf + '" onclick="toggleUF(\'' + uf + '\')">' +
+      uf + '<span class="n">' + cnt[uf] + '</span></span>';
+  });
+  document.getElementById('ufChips').innerHTML = html || '<span style="font-size:11px;color:var(--muted)">—</span>';
+}
+
+function toggleUF(uf) {
+  selUFs[uf] = !selUFs[uf];
+  var el = document.getElementById('uf_' + uf);
+  if (el) el.className = 'chip' + (selUFs[uf] ? ' on' : '');
+}
+
+
+function buildProdList() {
+  selProds = {};
+  var map = {};
+  allNotas.filter(function(n){ return n.status === 'ok'; }).forEach(function(n) {
+    (n.items || []).forEach(function(it) {
+      if (!map[it.codigo]) map[it.codigo] = {codigo: it.codigo, descricao: it.descricao, count: 0};
+      map[it.codigo].count++;
+    });
+  });
+  allProds = Object.values(map).sort(function(a, b) {
+    return (b.count - a.count) || a.descricao.localeCompare(b.descricao);
+  });
+  renderProdChips();
+}
+
+function renderProdChips() {
+  var search = (document.getElementById('fProdBusca').value || '').toLowerCase();
+  var visible = allProds.filter(function(p) {
+    return !search ||
+      p.descricao.toLowerCase().indexOf(search) >= 0 ||
+      p.codigo.toLowerCase().indexOf(search) >= 0;
+  });
+  if (!visible.length) {
+    document.getElementById('prodChips').innerHTML = '<div style="font-size:11px;color:var(--muted);padding:4px">Nenhum produto</div>';
+    return;
+  }
+  var html = '';
+  visible.forEach(function(p) {
+    var on = selProds[p.codigo] ? ' on' : '';
+    // Safe id: replace special chars
+    var safeId = p.codigo.replace(/[^a-zA-Z0-9_]/g, '_');
+    html += '<div class="pchip' + on + '" id="pc_' + safeId + '" onclick="toggleProd(\'' + safeId + '\')">' +
+      '<span class="pname" title="' + p.descricao + '">' + p.descricao + '</span>' +
+      '<span class="pcode">' + p.codigo + '</span>' +
+      '<span class="n">' + p.count + '</span>' +
+    '</div>';
+  });
+  document.getElementById('prodChips').innerHTML = html;
+ 
+  visible.forEach(function(p) {
+    var safeId = p.codigo.replace(/[^a-zA-Z0-9_]/g, '_');
+    if (safeId !== p.codigo) window['_pc_' + safeId] = p.codigo;
+  });
+}
+
+function toggleProd(safeId) {
+  
+  var codigo = window['_pc_' + safeId] || safeId;
+  selProds[codigo] = !selProds[codigo];
+  var el = document.getElementById('pc_' + safeId);
+  if (el) el.className = 'pchip' + (selProds[codigo] ? ' on' : '');
+}
+
+// ── FILTRAR (botão) ───────────────────────────────────────────────────────────
+function applyFilter() {
+  var texto = document.getElementById('fTexto').value.toLowerCase().trim();
+  var ordem = document.getElementById('fOrdem').value;
+
+  var ufsAtivas = Object.keys(selUFs).filter(function(u){ return selUFs[u] === true; });
+  var prodsAtivos = Object.keys(selProds).filter(function(c){ return selProds[c] === true; });
+
+  filteredNotas = allNotas.filter(function(n) {
+    // UF
+    if (ufsAtivas.length > 0) {
+      if (ufsAtivas.indexOf(n.dest_uf) === -1) return false;
+    }
+    // Produto
+    if (prodsAtivos.length > 0) {
+      var codigos = (n.items || []).map(function(it){ return it.codigo; });
+      var temProd = false;
+      for (var i = 0; i < prodsAtivos.length; i++) {
+        if (codigos.indexOf(prodsAtivos[i]) >= 0) { temProd = true; break; }
+      }
+      if (!temProd) return false;
+    }
+    // Texto
+    if (texto) {
+      var hay = [n.nNF, n.dest_nome, n.dest_cnpj, n.emit_nome, n.arquivo].join(' ').toLowerCase();
+      if (hay.indexOf(texto) === -1) return false;
+    }
+    return true;
+  });
+
+  filteredNotas.sort(function(a, b) {
+    if (ordem === 'valor') return (b.vNF || 0) - (a.vNF || 0);
+    if (ordem === 'nf') return parseInt(b.nNF || 0) - parseInt(a.nNF || 0);
+    return (b.dhEmi_raw || '') > (a.dhEmi_raw || '') ? 1 : -1;
+  });
+
+  var nFiltros = (ufsAtivas.length > 0 ? 1 : 0) + (prodsAtivos.length > 0 ? 1 : 0) + (texto ? 1 : 0);
+  var msg = filteredNotas.length + ' nota(s)';
+  if (nFiltros > 0) msg += ' com ' + nFiltros + ' filtro(s) ativo(s)';
+  document.getElementById('filterResult').textContent = msg;
+
+  renderList();
+}
+
+// ── Limpar ────────────────────────────────────────────────────────────────────
+function clearFilters() {
+  document.getElementById('fTexto').value = '';
+  document.getElementById('fOrdem').value = 'data';
+  document.getElementById('fProdBusca').value = '';
+
+  Object.keys(selUFs).forEach(function(u) {
+    selUFs[u] = false;
+    var el = document.getElementById('uf_' + u);
+    if (el) el.className = 'chip';
+  });
+  Object.keys(selProds).forEach(function(c) {
+    selProds[c] = false;
+  });
+
+  document.querySelectorAll('.pchip.on').forEach(function(el){ el.className = 'pchip'; });
+  document.getElementById('filterResult').textContent = '';
+  filteredNotas = allNotas.slice();
+  renderList();
+}
+
+function renderList() {
+  var list = document.getElementById('notaList');
+  if (!filteredNotas.length) {
+    list.innerHTML = '<div class="empty">Nenhuma nota encontrada</div>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < filteredNotas.length; i++) {
+    var n = filteredNotas[i];
+    if (n.status !== 'ok') {
+      html += '<div class="ni err" onclick="abrirNota(' + i + ')">' +
+        '<div class="nh"><span class="nn">⚠ ' + n.arquivo + '</span></div>' +
+        '<div class="ne">' + (n.erro || 'Erro ao ler XML') + '</div>' +
+      '</div>';
+    } else {
+      html += '<div class="ni" id="ni' + i + '" onclick="abrirNota(' + i + ')">' +
+        '<div class="nh"><span class="nn">NF ' + n.nNF + '</span><span class="nv">' + fmt(n.vNF) + '</span></div>' +
+        '<div class="nd">' + (n.dest_nome || '—') + ' · ' + (n.dest_uf || '') + '</div>' +
+        '<div class="ndt">' + (n.dhEmi || '') + '</div>' +
+      '</div>';
+    }
+  }
+  list.innerHTML = html;
+}
+
+// Abrir nota
+function abrirNota(i) {
+  document.querySelectorAll('.ni').forEach(function(el){ el.classList.remove('sel'); });
+  var el = document.getElementById('ni' + i);
+  if (el) el.classList.add('sel');
+  var n = filteredNotas[i];
+  if (!n) return;
+  if (n.status !== 'ok') { showError(n); return; }
+  showDetail(n);
+}
+
+function showError(n) {
+  document.getElementById('mainContent').innerHTML =
+    '<div style="padding:28px">' +
+    '<h2 style="color:var(--red);margin-bottom:10px">⚠ Erro ao processar XML</h2>' +
+    '<div class="chave-box">' + n.pasta + '/' + n.arquivo + '</div>' +
+    '<p style="color:var(--muted)">' + (n.erro || '') + '</p></div>';
+}
+
+function showDetail(n) {
+  var taxPct = n.vNF > 0 ? ((n.vICMS + n.vST + n.vPIS + n.vCOFINS) / n.vNF * 100).toFixed(1) : '0.0';
+  var rows = '';
+  (n.items || []).forEach(function(it) {
+    rows += '<tr>' +
+      '<td class="m">' + it.codigo + '</td>' +
+      '<td>' + it.descricao + '</td>' +
+      '<td class="m">' + it.ncm + '</td>' +
+      '<td class="m">' + it.cfop + '</td>' +
+      '<td class="m r">' + it.quantidade.toLocaleString('pt-BR') + ' ' + it.unidade + '</td>' +
+      '<td class="m r">' + fmt(it.vUnitario) + '</td>' +
+      '<td class="m r g">' + fmt(it.vTotal) + '</td>' +
+    '</tr>';
+  });
+
+  document.getElementById('mainContent').innerHTML =
+  '<div style="padding:26px 30px;overflow-y:auto;height:100%;">' +
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;">' +
+      '<div>' +
+        '<div style="font-size:22px;font-weight:700;font-family:\'IBM Plex Mono\',monospace;color:var(--accent)">NF-e nº ' + n.nNF + '</div>' +
+        '<div style="font-size:12px;color:var(--muted);margin-top:3px">' + n.dhEmi + ' · ' + n.natOp + '</div>' +
+      '</div>' +
+      '<div style="text-align:right">' +
+        '<div style="font-size:26px;font-weight:700;font-family:\'IBM Plex Mono\',monospace">' + fmt(n.vNF) + '</div>' +
+        '<div style="font-size:11px;color:var(--muted)">Valor total</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="chave-box">Chave: <span>' + n.chave + '</span> · Protocolo: <span>' + n.nProt + '</span></div>' +
+    '<div class="tg">' +
+      '<div class="tc"><div class="tl">ICMS</div><div class="tv" style="color:var(--accent)">' + fmt(n.vICMS) + '</div></div>' +
+      '<div class="tc"><div class="tl">ICMS-ST</div><div class="tv" style="color:var(--yellow)">' + fmt(n.vST) + '</div></div>' +
+      '<div class="tc"><div class="tl">PIS</div><div class="tv" style="color:var(--accent2)">' + fmt(n.vPIS) + '</div></div>' +
+      '<div class="tc"><div class="tl">COFINS</div><div class="tv" style="color:var(--accent2)">' + fmt(n.vCOFINS) + '</div></div>' +
+    '</div>' +
+    '<div class="dg">' +
+      '<div class="dc"><h4><span class="dot"></span>Emitente</h4>' +
+        '<div class="dr"><span class="k">Razão Social</span><span class="v">' + n.emit_nome + '</span></div>' +
+        '<div class="dr"><span class="k">CNPJ</span><span class="v">' + n.emit_cnpj + '</span></div>' +
+        '<div class="dr"><span class="k">Município</span><span class="v">' + n.emit_mun + ' - ' + n.emit_uf + '</span></div>' +
+      '</div>' +
+      '<div class="dc"><h4><span class="dot b"></span>Destinatário</h4>' +
+        '<div class="dr"><span class="k">Razão Social</span><span class="v">' + n.dest_nome + '</span></div>' +
+        '<div class="dr"><span class="k">CNPJ/CPF</span><span class="v">' + n.dest_cnpj + '</span></div>' +
+        '<div class="dr"><span class="k">Município</span><span class="v">' + n.dest_mun + ' - ' + n.dest_uf + '</span></div>' +
+      '</div>' +
+      '<div class="dc"><h4><span class="dot y"></span>Transporte & Pagamento</h4>' +
+        '<div class="dr"><span class="k">Transportadora</span><span class="v">' + (n.transp_nome || '—') + '</span></div>' +
+        '<div class="dr"><span class="k">Frete por conta</span><span class="v">' + n.modFrete + '</span></div>' +
+        '<div class="dr"><span class="k">Forma pagamento</span><span class="v">' + n.tPag + '</span></div>' +
+        '<div class="dr"><span class="k">Valor pago</span><span class="v g">' + fmt(n.vPag) + '</span></div>' +
+      '</div>' +
+      '<div class="dc"><h4><span class="dot"></span>Totais</h4>' +
+        '<div class="dr"><span class="k">Produtos</span><span class="v">' + fmt(n.vProd) + '</span></div>' +
+        '<div class="dr"><span class="k">Total tributos</span><span class="v y">' + fmt(n.vICMS + n.vST + n.vPIS + n.vCOFINS) + '</span></div>' +
+        '<div class="dr"><span class="k">Carga trib.</span><span class="v y">' + taxPct + '%</span></div>' +
+        '<div class="dr"><span class="k">Total NF-e</span><span class="v g">' + fmt(n.vNF) + '</span></div>' +
+      '</div>' +
+    '</div>' +
+    (rows ? '<div class="is"><h4>📦 Itens (' + n.items.length + ')</h4>' +
+      '<table><thead><tr>' +
+        '<th>Cód.</th><th>Descrição</th><th>NCM</th><th>CFOP</th>' +
+        '<th style="text-align:right">Qtd.</th><th style="text-align:right">Unit.</th><th style="text-align:right">Total</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div>' : '') +
+  '</div>';
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+function showDashboard() {
+  var ok = allNotas.filter(function(n){ return n.status === 'ok'; });
+  var tv = ok.reduce(function(s,n){ return s+n.vNF; }, 0);
+  var ti = ok.reduce(function(s,n){ return s+n.vICMS; }, 0);
+  var ts = ok.reduce(function(s,n){ return s+n.vST; }, 0);
+  var tp = ok.reduce(function(s,n){ return s+n.vPIS; }, 0);
+  var tc = ok.reduce(function(s,n){ return s+n.vCOFINS; }, 0);
+
+  var ufC = {};
+  ok.forEach(function(n){ ufC[n.dest_uf] = (ufC[n.dest_uf] || 0) + 1; });
+  var ufs = Object.entries(ufC).sort(function(a,b){ return b[1]-a[1]; }).slice(0, 8);
+  var mx = ufs.length ? ufs[0][1] : 1;
+  var ufHtml = '';
+  ufs.forEach(function(u) {
+    ufHtml += '<div class="uf-row">' +
+      '<span class="uf-label">' + u[0] + '</span>' +
+      '<div class="uf-bar-wrap"><div class="uf-bar" style="width:' + Math.round(u[1]/mx*100) + '%"></div></div>' +
+      '<span class="uf-count">' + u[1] + '</span></div>';
+  });
+
+  document.getElementById('mainContent').innerHTML =
+  '<div style="padding:26px 30px;overflow-y:auto;height:100%;width:100%;">' +
+    '<div style="font-size:17px;font-weight:700;margin-bottom:18px">📊 Visão geral — ' + ok.length + ' notas</div>' +
+    '<div class="bs">' +
+      '<div class="bsc"><div class="bl">Faturamento</div><div class="bv">' + fmt(tv) + '</div><div class="bs2">' + ok.length + ' NF-e</div></div>' +
+      '<div class="bsc"><div class="bl">Total tributos</div><div class="bv" style="color:var(--yellow)">' + fmt(ti+ts+tp+tc) + '</div><div class="bs2">ICMS+ST+PIS+COFINS</div></div>' +
+      '<div class="bsc"><div class="bl">ICMS-ST</div><div class="bv" style="color:var(--warn)">' + fmt(ts) + '</div><div class="bs2">Substituição tributária</div></div>' +
+    '</div>' +
+    '<div class="dg" style="margin-bottom:16px">' +
+      '<div class="dc"><h4><span class="dot y"></span>Breakdown tributário</h4>' +
+        '<div class="dr"><span class="k">ICMS</span><span class="v g">' + fmt(ti) + '</span></div>' +
+        '<div class="dr"><span class="k">ICMS-ST</span><span class="v y">' + fmt(ts) + '</span></div>' +
+        '<div class="dr"><span class="k">PIS</span><span class="v">' + fmt(tp) + '</span></div>' +
+        '<div class="dr"><span class="k">COFINS</span><span class="v">' + fmt(tc) + '</span></div>' +
+      '</div>' +
+      '<div class="dc"><h4><span class="dot b"></span>Destinos por UF</h4>' +
+        '<div class="uf-list">' + ufHtml + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<p style="color:var(--muted);font-size:12px">← Selecione uma nota. Use os filtros e clique em <strong style="color:var(--accent2)">Filtrar</strong>.</p>' +
+  '</div>';
+}
+</script>
+</body>
+</html>
